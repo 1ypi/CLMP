@@ -11,7 +11,7 @@ import subprocess
 ASCII_RAMP = ' .\'`^",:;Il!i><~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$'
 RAMP_LEN   = len(ASCII_RAMP)
 MAGIC   = b'CLMP'
-VERSION = 3
+VERSION = 4
 def frame_to_ascii_color(frame_bgr: np.ndarray, cols: int, rows: int):
     small = cv2.resize(frame_bgr, (cols, rows), interpolation=cv2.INTER_AREA)
     grey  = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)

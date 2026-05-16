@@ -194,7 +194,7 @@ def iter_frames_v1(f, frame_count):
             return
         (size,) = struct.unpack('<I', size_raw)
         yield zlib.decompress(f.read(size)), None
-def iter_frames_v2v3(f, frame_count):
+def iter_frames_v2_plus(f, frame_count):
     for _ in range(frame_count):
         size_raw = f.read(4)
         if len(size_raw) < 4:
@@ -330,7 +330,7 @@ def _play_loop(path, auto_scale, loop, speed, kr, use_color, use_audio):
                 version    = meta['version']
                 print(f"{CLEAR_SCREEN}{HOME}  Loading {total} frames...", flush=True)
                 if version >= 2:
-                    frames = list(iter_frames_v2v3(f, total))
+                    frames = list(iter_frames_v2_plus(f, total))
                 else:
                     frames = list(iter_frames_v1(f, total))
                 audio_data = None
