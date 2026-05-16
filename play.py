@@ -237,15 +237,19 @@ def scale_ascii_color(ascii_data: bytes, color_data: bytes,
     ascii_text = '\n'.join(out_ascii_lines)
     return ascii_text, bytes(out_color) if color_data is not None else None
 def render_hud(width: int, fps: float, frame: int, total: int,
-               paused: bool, speed: float, has_audio: bool, volume: float) -> str:
-    bar_w   = max(10, width - 70)
+               paused: bool, speed: float, has_audio: bool, volume: float, is_lagging: bool) -> str:
+    bar_w   = max(10, width - 85)
     pct     = frame / max(total, 1)
     filled  = int(pct * bar_w)
     bar     = '\u2588' * filled + '\u2591' * (bar_w - filled)
     status  = 'PAUSED' if paused else f'{fps*speed:.1f}fps'
     vol_str = f' vol:{int(volume*100)}%' if has_audio else ''
-    hud     = f' [{bar}] {frame:>5}/{total}  {status}  spd:{speed:.1f}x{vol_str}  q=quit'
-    return RESET_COLOR + hud[:width].ljust(width)
+    hud_base = f' [{bar}] {frame:>5}/{total}  {status}  spd:{speed:.1f}x{vol_str}  q=quit'
+    
+    hud = RESET_COLOR + hud_base[:width].ljust(width)
+    if is_lagging and width > 15:
+        hud = hud[:-8] + '\033[31;1m LAGGING\033[0m'
+    return hud
 def play(path: str, auto_scale: bool, loop: bool, speed: float, use_color: bool, use_audio: bool):
     print(HIDE_CURSOR, end='', flush=True)
     kr = KeyReader()
@@ -288,6 +292,7 @@ def _play_loop(path, auto_scale, loop, speed, kr, use_color, use_audio):
             spd        = speed
             spf        = 1.0 / (fps * spd)
             last_tick  = time.perf_counter()
+            lag_frames = 0
             if has_audio:
                 audio_player.set_speed(spd)
                 audio_player.start()
@@ -352,6 +357,8 @@ def _play_loop(path, auto_scale, loop, speed, kr, use_color, use_audio):
                         time.sleep(spf - diff)
                     last_tick = time.perf_counter()
                 term_w, term_h = term_size()
+                render_start = time.perf_counter()
+                
                 view_h = max(1, term_h - 1)
                 view_w = term_w
                 ascii_data, color_data = frames[frame_idx]
@@ -393,9 +400,17 @@ def _play_loop(path, auto_scale, loop, speed, kr, use_color, use_audio):
                     art = ('\n\033[K' * pad_y) + art + ('\n\033[K' * bottom_pad)
 
                 vol = audio_player.volume if has_audio else 0
-                hud = render_hud(term_w, fps, frame_idx + 1, len(frames), paused, spd, has_audio, vol)
+                is_lagging = lag_frames > 5
+                hud = render_hud(term_w, fps, frame_idx + 1, len(frames), paused, spd, has_audio, vol, is_lagging)
                 sys.stdout.write(HOME + art + '\n' + hud)
                 sys.stdout.flush()
+                
+                render_time = time.perf_counter() - render_start
+                if render_time > spf * 1.1:
+                    lag_frames += 1
+                else:
+                    lag_frames = max(0, lag_frames - 1)
+                    
                 frame_idx += 1
             if audio_player:
                 audio_player.stop()
