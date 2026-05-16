@@ -200,9 +200,11 @@ def colorize_frame(ascii_text: str, color_data: bytes, cols: int) -> str:
         for c_idx, ch in enumerate(line):
             off = row_start + c_idx * 3
             if off + 2 < len(color_data):
-                cr, cg, cb = color_data[off], color_data[off+1], color_data[off+2]
+                cr = color_data[off] & 0xF0
+                cg = color_data[off+1] & 0xF0
+                cb = color_data[off+2] & 0xF0
             else:
-                cr, cg, cb = 255, 255, 255
+                cr, cg, cb = 240, 240, 240
             if ch == ' ':
                 colored_chars.append(' ')
                 prev_r, prev_g, prev_b = -1, -1, -1
