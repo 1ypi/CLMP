@@ -60,6 +60,19 @@ def encode(src: str, dst: str, target_fps: float, cols: int, rows: int):
     src_w         = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     src_h         = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     duration_sec  = total_frames / src_fps if src_fps > 0 else 0
+    
+    char_aspect = 0.5
+    video_aspect = src_w / src_h if src_h > 0 else 1.0
+    max_cols = cols
+    max_rows = rows
+    cols = max_cols
+    rows = int(cols / (video_aspect / char_aspect))
+    if rows > max_rows:
+        rows = max_rows
+        cols = int(rows * (video_aspect / char_aspect))
+    cols = max(1, cols)
+    rows = max(1, rows)
+
     frame_step = max(1, round(src_fps / target_fps))
     actual_fps = src_fps / frame_step
     print(f"  Source  : {src_w}x{src_h}  {src_fps:.2f} fps  {total_frames} frames  ({duration_sec:.1f}s)")

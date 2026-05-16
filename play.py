@@ -346,17 +346,33 @@ def _play_loop(path, auto_scale, loop, speed, kr, use_color, use_audio):
                 view_w = term_w
                 ascii_data, color_data = frames[frame_idx]
                 if auto_scale and (cols != view_w or rows != view_h):
+                    aspect_ratio = cols / rows
+                    target_w = view_w
+                    target_h = int(target_w / aspect_ratio)
+                    if target_h > view_h:
+                        target_h = view_h
+                        target_w = int(target_h * aspect_ratio)
+                    target_w = max(1, target_w)
+                    target_h = max(1, target_h)
+
                     ascii_text, scaled_color = scale_ascii_color(
-                        ascii_data, color_data, cols, rows, view_w, view_h)
-                    display_cols = view_w
+                        ascii_data, color_data, cols, rows, target_w, target_h)
+                    display_cols = target_w
+                    display_rows = target_h
                 else:
                     ascii_text = ascii_data.decode('ascii')
                     scaled_color = color_data
                     display_cols = cols
+                    display_rows = rows
                 if has_color and scaled_color is not None:
                     art = colorize_frame(ascii_text, scaled_color, display_cols)
                 else:
                     art = ascii_text
+
+                art = art.replace('\n', '\033[K\n') + '\033[K'
+                if display_rows < view_h:
+                    art += ('\n\033[K' * (view_h - display_rows))
+
                 vol = audio_player.volume if has_audio else 0
                 hud = render_hud(term_w, fps, frame_idx + 1, len(frames), paused, spd, has_audio, vol)
                 sys.stdout.write(HOME + art + '\n' + hud)
