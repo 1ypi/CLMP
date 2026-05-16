@@ -6,6 +6,31 @@ import os
 import time
 import argparse
 import threading
+import json
+
+SETTINGS_FILE = 'settings.json'
+DEFAULT_SETTINGS = {
+    'jump_seconds': 10.0,
+    'volume_step': 0.1,
+    'last_volume': 0.8
+}
+
+def load_settings():
+    if not os.path.exists(SETTINGS_FILE):
+        return DEFAULT_SETTINGS.copy()
+    try:
+        with open(SETTINGS_FILE, 'r') as f:
+            data = json.load(f)
+            settings = DEFAULT_SETTINGS.copy()
+            settings.update(data)
+            return settings
+    except Exception:
+        return DEFAULT_SETTINGS.copy()
+
+def save_settings(settings):
+    with open(SETTINGS_FILE, 'w') as f:
+        json.dump(settings, f, indent=4)
+
 IS_WINDOWS = sys.platform == 'win32'
 if IS_WINDOWS:
     import msvcrt
@@ -86,7 +111,7 @@ class KeyReader:
         if not IS_WINDOWS:
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, self._old_settings)
 class AudioPlayer:
-    def __init__(self, audio_data: bytes):
+    def __init__(self, audio_data: bytes, volume: float = 0.8):
         import subprocess as sp
         cmd = ['ffmpeg', '-i', 'pipe:0', '-f', 's16le', '-ar', '44100', '-ac', '2', 'pipe:1']
         kw = {'stdout': sp.PIPE, 'stderr': sp.DEVNULL}
@@ -102,7 +127,7 @@ class AudioPlayer:
         self.duration = self.total_samples / self.sample_rate
         self._position = 0.0
         self._speed = 1.0
-        self._volume = 0.8
+        self._volume = volume
         self._playing = False
         self._stream = None
     def _callback(self, outdata, frames, time_info, status):
@@ -313,8 +338,13 @@ def _play_loop(path, auto_scale, loop, speed, kr, use_color, use_audio):
                     audio_data = read_audio(f)
             has_color = version >= 2 and use_color
             has_audio = False
+            settings = load_settings()
+            jump_sec = settings['jump_seconds']
+            vol_step = settings['volume_step']
+            last_vol = settings['last_volume']
+            
             if audio_data is not None and HAS_AUDIO_SUPPORT:
-                audio_player = AudioPlayer(audio_data)
+                audio_player = AudioPlayer(audio_data, volume=last_vol)
                 has_audio = True
             elif audio_data is not None and not HAS_AUDIO_SUPPORT:
                 print(f"{HOME}  [WARN] pip install sounddevice numpy  for audio", flush=True)
@@ -355,17 +385,21 @@ def _play_loop(path, auto_scale, loop, speed, kr, use_color, use_audio):
                         audio_player.set_speed(spd)
                 elif key == 'UP':
                     if has_audio:
-                        audio_player.set_volume(0.1)
+                        audio_player.set_volume(vol_step)
+                        settings['last_volume'] = audio_player.volume
+                        save_settings(settings)
                 elif key == 'DOWN':
                     if has_audio:
-                        audio_player.set_volume(-0.1)
+                        audio_player.set_volume(-vol_step)
+                        settings['last_volume'] = audio_player.volume
+                        save_settings(settings)
                 elif key == 'RIGHT':
-                    jump = int(10 * fps)
+                    jump = int(jump_sec * fps)
                     frame_idx = min(len(frames) - 1, frame_idx + jump)
                     if has_audio:
                         audio_player.seek(frame_idx / fps)
                 elif key == 'LEFT':
-                    jump = int(10 * fps)
+                    jump = int(jump_sec * fps)
                     frame_idx = max(0, frame_idx - jump)
                     if has_audio:
                         audio_player.seek(frame_idx / fps)
@@ -378,8 +412,9 @@ def _play_loop(path, auto_scale, loop, speed, kr, use_color, use_audio):
                     drift = video_time - audio_time
                     if drift > 0.02:
                         time.sleep(min(drift, 0.1))
-                    elif drift < -0.05:
-                        pass
+                    elif drift < -0.1:
+                        frame_idx += 1
+                        continue
                     else:
                         now = time.perf_counter()
                         diff = now - last_tick
