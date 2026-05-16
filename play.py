@@ -278,8 +278,9 @@ def render_hud(width: int, fps: float, frame: int, total: int,
     vol_str = f' vol:{int(volume*100)}%' if has_audio else ''
     hud_base = f' [{bar}] {frame:>5}/{total}  {status}  spd:{speed:.1f}x{vol_str}  q=quit'
     
-    hud = RESET_COLOR + hud_base[:width].ljust(width)
-    if is_lagging and width > 15:
+    safe_width = max(1, width - 1)
+    hud = RESET_COLOR + hud_base[:safe_width].ljust(safe_width)
+    if is_lagging and safe_width > 15:
         hud = hud[:-8] + '\033[31;1m LAGGING\033[0m'
     return hud
 def play(path: str, auto_scale: bool, loop: bool, speed: float, use_color: bool, use_audio: bool):
