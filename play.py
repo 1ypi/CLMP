@@ -213,7 +213,6 @@ def delta_render_frame(ascii_text: str, color_data: bytes, cols: int,
             new_val = (ch, cr, cg, cb)
             
             if force_redraw or back_buffer.get(cell_key) != new_val:
-                back_buffer[cell_key] = new_val
                 out.append(f"\033[{pad_y + r_idx + 1};{pad_x + c_idx + 1}H")
                 
                 while c_idx < len(line):
