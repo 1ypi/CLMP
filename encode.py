@@ -57,8 +57,13 @@ def encode(src: str, dst: str, target_fps: float, cols: int, rows: int):
         sys.exit(f"[ERROR] Cannot open '{src}'")
     src_fps       = cap.get(cv2.CAP_PROP_FPS) or 24.0
     total_frames  = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    src_w         = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    src_h         = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    ret, test_frame = cap.read()
+    if ret:
+        src_h, src_w = test_frame.shape[:2]
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+    else:
+        src_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        src_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     duration_sec  = total_frames / src_fps if src_fps > 0 else 0
     
     char_aspect = 0.5
