@@ -190,31 +190,61 @@ def read_audio(f):
     if size == 0:
         return None
     return f.read(size)
-def colorize_frame(ascii_text: str, color_data: bytes, cols: int) -> str:
+def delta_render_frame(ascii_text: str, color_data: bytes, cols: int, 
+                       pad_x: int, pad_y: int, back_buffer: dict, force_redraw: bool) -> str:
     lines = ascii_text.split('\n')
     out = []
     prev_r, prev_g, prev_b = -1, -1, -1
+    
     for r_idx, line in enumerate(lines):
         row_start = r_idx * cols * 3
-        colored_chars = []
-        for c_idx, ch in enumerate(line):
+        c_idx = 0
+        while c_idx < len(line):
+            ch = line[c_idx]
             off = row_start + c_idx * 3
-            if off + 2 < len(color_data):
+            if color_data is not None and off + 2 < len(color_data):
                 cr = color_data[off] & 0xF0
                 cg = color_data[off+1] & 0xF0
                 cb = color_data[off+2] & 0xF0
             else:
                 cr, cg, cb = 240, 240, 240
-            if ch == ' ':
-                colored_chars.append(' ')
-                prev_r, prev_g, prev_b = -1, -1, -1
-            elif cr == prev_r and cg == prev_g and cb == prev_b:
-                colored_chars.append(ch)
+            
+            cell_key = (r_idx, c_idx)
+            new_val = (ch, cr, cg, cb)
+            
+            if force_redraw or back_buffer.get(cell_key) != new_val:
+                back_buffer[cell_key] = new_val
+                out.append(f"\033[{pad_y + r_idx + 1};{pad_x + c_idx + 1}H")
+                
+                while c_idx < len(line):
+                    ch = line[c_idx]
+                    off = row_start + c_idx * 3
+                    if color_data is not None and off + 2 < len(color_data):
+                        cr = color_data[off] & 0xF0
+                        cg = color_data[off+1] & 0xF0
+                        cb = color_data[off+2] & 0xF0
+                    else:
+                        cr, cg, cb = 240, 240, 240
+                    
+                    cell_key = (r_idx, c_idx)
+                    new_val = (ch, cr, cg, cb)
+                    
+                    if not force_redraw and back_buffer.get(cell_key) == new_val:
+                        break
+                    
+                    back_buffer[cell_key] = new_val
+                    if ch == ' ':
+                        out.append(' ')
+                        prev_r, prev_g, prev_b = -1, -1, -1
+                    elif cr == prev_r and cg == prev_g and cb == prev_b:
+                        out.append(ch)
+                    else:
+                        out.append(f"\033[38;2;{cr};{cg};{cb}m{ch}")
+                        prev_r, prev_g, prev_b = cr, cg, cb
+                    c_idx += 1
             else:
-                colored_chars.append(f'\033[38;2;{cr};{cg};{cb}m{ch}')
-                prev_r, prev_g, prev_b = cr, cg, cb
-        out.append(''.join(colored_chars))
-    return '\n'.join(out) + RESET_COLOR
+                c_idx += 1
+    return "".join(out)
 def scale_ascii_color(ascii_data: bytes, color_data: bytes,
                       src_cols: int, src_rows: int,
                       dst_cols: int, dst_rows: int):
@@ -295,6 +325,10 @@ def _play_loop(path, auto_scale, loop, speed, kr, use_color, use_audio):
             spf        = 1.0 / (fps * spd)
             last_tick  = time.perf_counter()
             lag_frames = 0
+            
+            back_buffer = {}
+            last_term_w = 0
+            last_term_h = 0
             if has_audio:
                 audio_player.set_speed(spd)
                 audio_player.start()
@@ -361,6 +395,14 @@ def _play_loop(path, auto_scale, loop, speed, kr, use_color, use_audio):
                 term_w, term_h = term_size()
                 render_start = time.perf_counter()
                 
+                force_redraw = False
+                if term_w != last_term_w or term_h != last_term_h:
+                    sys.stdout.write(CLEAR_SCREEN)
+                    back_buffer.clear()
+                    last_term_w = term_w
+                    last_term_h = term_h
+                    force_redraw = True
+
                 view_h = max(1, term_h - 1)
                 view_w = term_w
                 ascii_data, color_data = frames[frame_idx]
@@ -383,28 +425,19 @@ def _play_loop(path, auto_scale, loop, speed, kr, use_color, use_audio):
                     scaled_color = color_data
                     display_cols = cols
                     display_rows = rows
-                if has_color and scaled_color is not None:
-                    art = colorize_frame(ascii_text, scaled_color, display_cols)
-                else:
-                    art = ascii_text
-
+                
                 pad_x = max(0, (view_w - display_cols) // 2)
                 pad_y = max(0, (view_h - display_rows) // 2)
-                
-                if pad_x > 0:
-                    left_pad = ' ' * pad_x
-                    art = left_pad + art.replace('\n', f'\033[K\n{left_pad}') + '\033[K'
-                else:
-                    art = art.replace('\n', '\033[K\n') + '\033[K'
 
-                if display_rows < view_h:
-                    bottom_pad = view_h - display_rows - pad_y
-                    art = ('\n\033[K' * pad_y) + art + ('\n\033[K' * bottom_pad)
+                art = delta_render_frame(ascii_text, scaled_color if has_color else None, 
+                                         display_cols, pad_x, pad_y, back_buffer, force_redraw)
 
                 vol = audio_player.volume if has_audio else 0
                 is_lagging = lag_frames > 5
                 hud = render_hud(term_w, fps, frame_idx + 1, len(frames), paused, spd, has_audio, vol, is_lagging)
-                sys.stdout.write(HOME + art + '\n' + hud)
+                
+                hud_pos = f"\033[{term_h};1H"
+                sys.stdout.write(HOME + art + hud_pos + hud)
                 sys.stdout.flush()
                 
                 render_time = time.perf_counter() - render_start
