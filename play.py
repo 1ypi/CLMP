@@ -331,16 +331,26 @@ def _play_loop(path, auto_scale, loop, speed, kr, use_color, use_audio):
                 if paused:
                     time.sleep(0.05)
                     continue
-                now  = time.perf_counter()
-                diff = now - last_tick
-                if diff < spf:
-                    time.sleep(spf - diff)
-                last_tick = time.perf_counter()
-                if has_audio and frame_idx % 30 == 0:
+                if has_audio and not paused:
                     video_time = frame_idx / fps
                     audio_time = audio_player.current_time
-                    if abs(video_time - audio_time) > 0.15:
-                        audio_player.seek(video_time)
+                    drift = video_time - audio_time
+                    if drift > 0.02:
+                        time.sleep(min(drift, 0.1))
+                    elif drift < -0.05:
+                        pass
+                    else:
+                        now = time.perf_counter()
+                        diff = now - last_tick
+                        if diff < spf:
+                            time.sleep(spf - diff)
+                    last_tick = time.perf_counter()
+                else:
+                    now = time.perf_counter()
+                    diff = now - last_tick
+                    if diff < spf:
+                        time.sleep(spf - diff)
+                    last_tick = time.perf_counter()
                 term_w, term_h = term_size()
                 view_h = max(1, term_h - 1)
                 view_w = term_w
@@ -369,9 +379,18 @@ def _play_loop(path, auto_scale, loop, speed, kr, use_color, use_audio):
                 else:
                     art = ascii_text
 
-                art = art.replace('\n', '\033[K\n') + '\033[K'
+                pad_x = max(0, (view_w - display_cols) // 2)
+                pad_y = max(0, (view_h - display_rows) // 2)
+                
+                if pad_x > 0:
+                    left_pad = ' ' * pad_x
+                    art = left_pad + art.replace('\n', f'\033[K\n{left_pad}') + '\033[K'
+                else:
+                    art = art.replace('\n', '\033[K\n') + '\033[K'
+
                 if display_rows < view_h:
-                    art += ('\n\033[K' * (view_h - display_rows))
+                    bottom_pad = view_h - display_rows - pad_y
+                    art = ('\n\033[K' * pad_y) + art + ('\n\033[K' * bottom_pad)
 
                 vol = audio_player.volume if has_audio else 0
                 hud = render_hud(term_w, fps, frame_idx + 1, len(frames), paused, spd, has_audio, vol)
