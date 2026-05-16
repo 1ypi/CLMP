@@ -1,4 +1,3 @@
-# python play.py movie.clmp [--loop] [--speed 1.0] [--no-scale] [--no-color] [--no-audio]
 import struct
 import zlib
 import sys
@@ -7,29 +6,9 @@ import time
 import argparse
 import threading
 import json
-
-SETTINGS_FILE = 'settings.json'
-DEFAULT_SETTINGS = {
-    'jump_seconds': 10.0,
-    'volume_step': 0.1,
-    'last_volume': 0.8
-}
-
-def load_settings():
-    if not os.path.exists(SETTINGS_FILE):
-        return DEFAULT_SETTINGS.copy()
-    try:
-        with open(SETTINGS_FILE, 'r') as f:
-            data = json.load(f)
-            settings = DEFAULT_SETTINGS.copy()
-            settings.update(data)
-            return settings
-    except Exception:
-        return DEFAULT_SETTINGS.copy()
-
-def save_settings(settings):
-    with open(SETTINGS_FILE, 'w') as f:
-        json.dump(settings, f, indent=4)
+from clmp import MAGIC
+from clmp import ffmpeg_check
+from clmp.settings import load_settings, save_settings
 
 IS_WINDOWS = sys.platform == 'win32'
 if IS_WINDOWS:
@@ -47,7 +26,6 @@ try:
     HAS_AUDIO_SUPPORT = True
 except ImportError:
     HAS_AUDIO_SUPPORT = False
-MAGIC   = b'CLMP'
 HIDE_CURSOR = '\033[?25l'
 SHOW_CURSOR = '\033[?25h'
 CLEAR_SCREEN = '\033[2J'
@@ -493,20 +471,20 @@ def _play_loop(path, auto_scale, loop, speed, kr, use_color, use_audio):
     finally:
         if audio_player:
             audio_player.stop()
-def main():
-    import ffmpeg_check
+def main(args=None):
     ffmpeg_check.ensure_ffmpeg()
-    ap = argparse.ArgumentParser(
-        description='Play a .clmp ASCII-cinema file in the terminal.'
-    )
-    ap.add_argument('file',                              help='.clmp file to play')
-    ap.add_argument('--no-scale', action='store_true',   help='Disable auto terminal scaling')
-    ap.add_argument('--no-color', action='store_true',   help='Disable color output')
-    ap.add_argument('--no-audio', action='store_true',   help='Disable audio playback')
-    ap.add_argument('--loop',     action='store_true',   help='Loop the video')
-    ap.add_argument('--speed',    type=float, default=1.0,
-                    help='Playback speed multiplier (default 1.0)')
-    args = ap.parse_args()
+    if args is None:
+        ap = argparse.ArgumentParser(
+            description='Play a .clmp ASCII-cinema file in the terminal.'
+        )
+        ap.add_argument('file',                              help='.clmp file to play')
+        ap.add_argument('--no-scale', action='store_true',   help='Disable auto terminal scaling')
+        ap.add_argument('--no-color', action='store_true',   help='Disable color output')
+        ap.add_argument('--no-audio', action='store_true',   help='Disable audio playback')
+        ap.add_argument('--loop',     action='store_true',   help='Loop the video')
+        ap.add_argument('--speed',    type=float, default=1.0,
+                        help='Playback speed multiplier (default 1.0)')
+        args = ap.parse_args()
     if not os.path.isfile(args.file):
         sys.exit(f"[ERROR] File not found: '{args.file}'")
     with open(args.file, 'rb') as f:

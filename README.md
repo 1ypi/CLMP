@@ -2,11 +2,18 @@
 
 Turn any MP4 video into a high-performance colored ASCII animation that plays entirely in your terminal — with audio.
 
-## Demo
+## Installation
 
 ```bash
-python play.py movie.clmp
+pip install clmp
 ```
+
+## Requirements
+
+- Python 3.8+
+- [FFmpeg](https://ffmpeg.org/download.html) — must be on your PATH (used for audio extraction and decoding)
+
+> **Note:** CLMP will offer to install FFmpeg for you automatically if it's not found.
 
 ## Features
 
@@ -15,21 +22,10 @@ python play.py movie.clmp
 - **Frame-Dropping Audio Sync** — Professional audio-led synchronization that automatically drops video frames to stay perfectly locked to the audio clock.
 - **Embedded audio** — audio is extracted as OGG Vorbis and played back in sync via `sounddevice`.
 - **Full playback controls** — pause, speed up/down, seek, volume, quit.
-- **Persistent Settings** — Customize your experience (jump size, volume steps) via the new `set.py` tool.
+- **Persistent Settings** — Customize your experience (jump size, volume steps) via `clmp set`.
 - **Auto-scaling** — fits to any terminal size using nearest-neighbor resampling.
 - **Compact format** — frames are zlib-compressed, audio stored as OGG Vorbis.
 - **Cross-platform** — works on Windows, macOS, and Linux.
-
-## Requirements
-
-- Python 3.8+
-- [FFmpeg](https://ffmpeg.org/download.html) — must be on your PATH (used for audio extraction and decoding)
-
-Install Python dependencies:
-
-```bash
-pip install -r requirements.txt
-```
 
 ## Usage
 
@@ -38,7 +34,7 @@ pip install -r requirements.txt
 Convert an MP4 to a `.clmp` file:
 
 ```bash
-python encode.py input.mp4 output.clmp
+clmp encode input.mp4 output.clmp
 ```
 
 Options:
@@ -52,7 +48,7 @@ Options:
 ### Play
 
 ```bash
-python play.py output.clmp
+clmp play output.clmp
 ```
 
 Options:
@@ -67,17 +63,17 @@ Options:
 
 ### Configure
 
-Use the `set.py` tool to customize your playback experience. These settings are saved in `settings.json`.
+Use `clmp set` to customize your playback experience. Settings are saved in `~/.clmp/settings.json`.
 
 ```bash
 # Set jump distance to 5 seconds
-python set.py --jump 5
+clmp set --jump 5
 
 # Set volume increments to 5%
-python set.py --vol-step 5
+clmp set --vol-step 5
 
 # Set default starting volume
-python set.py --volume 50
+clmp set --volume 50
 ```
 
 ### Controls
@@ -116,3 +112,7 @@ Binary file layout (little-endian):
 │   ...  audio_data     raw OGG bytes     │
 └─────────────────────────────────────────┘
 ```
+
+## License
+
+GNU General Public License v3 (GPLv3) (GPL-3.0-only)
