@@ -89,7 +89,7 @@ class AudioPlayer:
     def __init__(self, audio_data: bytes):
         import subprocess as sp
         cmd = ['ffmpeg', '-i', 'pipe:0', '-f', 's16le', '-ar', '44100', '-ac', '2', 'pipe:1']
-        kw = {'stdin': sp.PIPE, 'stdout': sp.PIPE, 'stderr': sp.DEVNULL}
+        kw = {'stdout': sp.PIPE, 'stderr': sp.DEVNULL}
         if IS_WINDOWS:
             kw['creationflags'] = 0x08000000
         result = sp.run(cmd, input=audio_data, **kw)
