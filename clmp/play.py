@@ -5,6 +5,7 @@ import os
 import time
 import argparse
 import threading
+import collections
 import json
 from clmp import MAGIC
 from clmp import ffmpeg_check
@@ -39,14 +40,24 @@ def term_size():
         return 80, 24
 class KeyReader:
     def __init__(self):
-        self._key  = None
+        self._keys = collections.deque(maxlen=32)
         self._lock = threading.Lock()
         self._stop = threading.Event()
-        self._t    = threading.Thread(target=self._run, daemon=True)
-        self._t.start()
         if not IS_WINDOWS:
             self._old_settings = termios.tcgetattr(sys.stdin)
             tty.setcbreak(sys.stdin.fileno())
+        self._fd = sys.stdin.fileno()
+        self._t = threading.Thread(target=self._run, daemon=True)
+        self._t.start()
+    def _read_byte(self, timeout):
+        """Read a single byte from stdin with timeout. Returns byte string or None."""
+        r, _, _ = select.select([self._fd], [], [], timeout)
+        if r:
+            return os.read(self._fd, 1)
+        return None
+    def _push(self, key):
+        with self._lock:
+            self._keys.append(key)
     def _run(self):
         while not self._stop.is_set():
             if IS_WINDOWS:
@@ -56,34 +67,39 @@ class KeyReader:
                         ch2 = msvcrt.getwch()
                         arrow = {'H': 'UP', 'P': 'DOWN', 'K': 'LEFT', 'M': 'RIGHT'}.get(ch2)
                         if arrow:
-                            with self._lock:
-                                self._key = arrow
+                            self._push(arrow)
                     else:
-                        with self._lock:
-                            self._key = ch
+                        self._push(ch)
                 else:
                     time.sleep(0.02)
             else:
-                r, _, _ = select.select([sys.stdin], [], [], 0.02)
-                if r:
-                    ch = sys.stdin.read(1)
-                    if ch == '\x1b':
-                        r2, _, _ = select.select([sys.stdin], [], [], 0.05)
-                        if r2:
-                            ch2 = sys.stdin.read(1)
-                            if ch2 == '[':
-                                ch3 = sys.stdin.read(1)
-                                arrow = {'A': 'UP', 'B': 'DOWN', 'D': 'LEFT', 'C': 'RIGHT'}.get(ch3)
-                                if arrow:
-                                    with self._lock:
-                                        self._key = arrow
-                    else:
-                        with self._lock:
-                            self._key = ch
+                b = self._read_byte(0.02)
+                if b is None:
+                    continue
+                if b == b'\x1b':
+                    # Start of escape sequence — wait longer for the next byte
+                    b2 = self._read_byte(0.2)
+                    if b2 is None:
+                        # Bare Escape key
+                        self._push('\x1b')
+                        continue
+                    if b2 == b'[':
+                        b3 = self._read_byte(0.2)
+                        if b3 is not None:
+                            arrow = {b'A': 'UP', b'B': 'DOWN', b'D': 'LEFT', b'C': 'RIGHT'}.get(b3)
+                            if arrow:
+                                self._push(arrow)
+                    # else: unknown escape — discard
+                else:
+                    try:
+                        self._push(b.decode('utf-8', errors='replace'))
+                    except Exception:
+                        pass
     def get(self):
         with self._lock:
-            k, self._key = self._key, None
-            return k
+            if self._keys:
+                return self._keys.popleft()
+            return None
     def close(self):
         self._stop.set()
         if not IS_WINDOWS:
@@ -320,6 +336,7 @@ def _play_loop(path, auto_scale, loop, speed, kr, use_color, use_audio):
             jump_sec = settings['jump_seconds']
             vol_step = settings['volume_step']
             last_vol = settings['last_volume']
+            show_lagging = settings.get('show_lagging', True)
             
             if audio_data is not None and HAS_AUDIO_SUPPORT:
                 audio_player = AudioPlayer(audio_data, volume=last_vol)
@@ -446,7 +463,7 @@ def _play_loop(path, auto_scale, loop, speed, kr, use_color, use_audio):
                                          display_cols, pad_x, pad_y, back_buffer, force_redraw)
 
                 vol = audio_player.volume if has_audio else 0
-                is_lagging = lag_frames > 5
+                is_lagging = lag_frames > 5 and show_lagging
                 hud = render_hud(term_w, fps, frame_idx + 1, len(frames), paused, spd, has_audio, vol, is_lagging)
                 
                 hud_pos = f"\033[{term_h};1H"

@@ -8,7 +8,8 @@ SETTINGS_FILE = os.path.join(SETTINGS_DIR, 'settings.json')
 DEFAULT_SETTINGS = {
     'jump_seconds': 10.0,
     'volume_step': 0.1,
-    'last_volume': 0.8
+    'last_volume': 0.8,
+    'show_lagging': True
 }
 
 def load_settings():
@@ -34,6 +35,8 @@ def main(args=None):
         parser.add_argument('--jump', type=float, help='Number of seconds to jump for left/right arrows')
         parser.add_argument('--vol-step', type=float, help='Volume increment percentage (e.g. 5 for 5%%, 10 for 10%%) for up/down arrows')
         parser.add_argument('--volume', type=float, help='Set the default starting volume percentage (e.g. 80)')
+        parser.add_argument('--no-lag-warn', action='store_true', default=None, help='Disable the LAGGING warning during playback')
+        parser.add_argument('--lag-warn', action='store_true', default=None, help='Enable the LAGGING warning during playback')
         args = parser.parse_args()
 
     settings = load_settings()
@@ -52,6 +55,15 @@ def main(args=None):
     if args.volume is not None:
         settings['last_volume'] = max(0.0, min(1.0, float(args.volume) / 100.0))
         print(f"Set starting volume to {settings['last_volume'] * 100:.1f}%")
+        changed = True
+
+    if getattr(args, 'no_lag_warn', None):
+        settings['show_lagging'] = False
+        print("Disabled LAGGING warning")
+        changed = True
+    elif getattr(args, 'lag_warn', None):
+        settings['show_lagging'] = True
+        print("Enabled LAGGING warning")
         changed = True
 
     if changed:

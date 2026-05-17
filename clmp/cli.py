@@ -1,4 +1,3 @@
-"""Unified CLI entry point for CLMP."""
 import argparse
 import sys
 from clmp import __version__
@@ -60,6 +59,10 @@ def main():
                     help='Volume increment %% (e.g. 5 for 5%%)')
     st.add_argument('--volume', type=float,
                     help='Default starting volume %% (e.g. 80)')
+    st.add_argument('--no-lag-warn', action='store_true', default=None,
+                    help='Disable the LAGGING warning during playback')
+    st.add_argument('--lag-warn', action='store_true', default=None,
+                    help='Enable the LAGGING warning during playback')
 
     args = parser.parse_args()
 

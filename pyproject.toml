@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "clmp"
-version = "4.0.1"
+version = "4.0.2"
 description = "CLI Movie Package — Turn MP4 videos into colored ASCII terminal animations with audio"
 readme = "README.md"
 license = "GPL-3.0-only"
